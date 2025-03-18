@@ -1,105 +1,199 @@
 from tkinter import *
-from tkinter import ttk
-from random_word import RandomWords
+from tkinter import ttk, messagebox
+from faker import Faker
+import time
+import csv
 
+# Initialize Window
 window = Tk()
 window.title('Typing Speed Test')
 background_color = 'white'
 
 # Variables
 High_Score = 0
-CPM = 5
-WPM = CPM * 5
+CPM = 0
+WPM = 0
+word_array = []
+faker = Faker()
+start_time = None
+leaderboard_file = "leaderboard.csv"
 
 # Create Canvas
 canvas = Canvas(window, width=800, height=450, highlightthickness=0, background=background_color)
 canvas.grid(row=0, column=0, columnspan=3)
 
-# Global Variables
+# Global UI Elements
 name_entry = None
 submit_button = None
 restart_button = None
 name_display = None
-word_array = []
-random_words = RandomWords()
+word_label = None
+input_text = None
+typed_label = None
+timer_label = None
+countdown_time = 60  # 60-second test
 
-for n in range(1, 100):
-    word = random_words.get_random_word()
-    word_array.append(random_words)
+
+def Generate_words():
+    """Generate a fresh list of random words."""
+    global word_array
+    word_array = [faker.word() for _ in range(50)]
+    return " ".join(word_array)
 
 
+def display_text():
+    """Display generated words in the label."""
+    global word_label
+    words = Generate_words()
+
+    if word_label is None:
+        word_label = Label(window, text=words, wraplength=500, justify=LEFT, font=("Arial", 16), padx=10, pady=10)
+        word_label.grid(row=0, column=0, columnspan=3)
+    else:
+        word_label.config(text=words)  # Update label text
+
+
+def track_input(*args):
+    """Track user input dynamically."""
+    global typed_label
+    typed_text = input_text.get().strip()  # Get user input and remove spaces at the ends
+    words_typed = typed_text.split()  # Convert typed text into a list of words
+
+    correct = True  # Assume input is correct initially
+
+    for i in range(len(words_typed)):
+        if i >= len(word_array) or words_typed[i] != word_array[i]:
+            correct = False
+            break
+
+    # Update label text and color based on correctness
+    color = "Green" if correct else "red"
+    typed_label.config(text=f"Typed: {typed_text}", wraplength=500, fg=color, justify=LEFT, font=("Arial", 16))
+def start_timer(time_left):
+    """Start countdown timer."""
+    global input_text
+    if time_left > 0:
+        timer_label.config(text=f"Time Left: {time_left}s")
+        window.after(1000, start_timer, time_left - 1)
+    else:
+        input_text.config(state=DISABLED)
+        calculate_results()
+
+
+def start_test():
+    """Start the typing speed test."""
+    global start_time
+    start_time = time.time()
+    start_timer(countdown_time)
+
+
+def calculate_results():
+    """Calculate WPM, CPM, and Accuracy."""
+
+    end_time = time.time()
+    elapsed_time = max(1, end_time - start_time)
+
+    typed_words = input_text.get().split()
+    correct_words = 0
+    for typed, actual in zip(typed_words, word_array):
+        if typed == actual:
+            correct_words += 1
+
+    global WPM, CPM
+    CPM = round((len(input_text.get()) / elapsed_time) * 60)
+    WPM = round((len(typed_words) / elapsed_time) * 60)
+    accuracy = round((correct_words / len(typed_words)) * 100) if typed_words else 0
+
+    name = name_entry.get() or "Anonymous"
+    save_to_csv(name, WPM, accuracy)
+
+    messagebox.showinfo("Results", f"{name}\nWPM: {WPM}\nCPM: {CPM}\nAccuracy: {accuracy}%")
+
+    input_text.set("")
+    typed_label.config(text="Typed: ")
+
+
+def save_to_csv(name, wpm, accuracy):
+    """Save results to CSV."""
+    with open(leaderboard_file, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([name, wpm, accuracy])
+
+
+def show_leaderboard():
+    """Show saved leaderboard scores."""
+    try:
+        with open(leaderboard_file, "r") as file:
+            reader = csv.reader(file)
+            scores = "\n".join([f"{row[0]}: {row[1]} WPM | {row[2]}% Accuracy" for row in reader])
+            messagebox.showinfo("Leaderboard", scores)
+    except FileNotFoundError:
+        messagebox.showinfo("Leaderboard", "No scores yet!")
 
 
 def start():
-    global name_entry, submit_button, restart_button, name_display
+    """Initialize the Typing Speed Test UI."""
+    global name_entry, submit_button, restart_button, name_display, input_text, typed_label, timer_label
 
-    # Clear previous elements
     canvas.delete("all")
 
-    # Name Input Field
     name_label = canvas.create_text(150, 20, text="Enter your Name:", fill="black", font=("Arial", 20))
     name_entry = ttk.Entry(window)
     canvas.create_window(350, 20, window=name_entry)
 
-    # Separator Lines
     canvas.create_line(0, 50, 800, 50, fill="black", width=2)
     canvas.create_line(0, 100, 800, 100, fill="black", width=2)
     canvas.create_line(0, 400, 800, 400, fill="black", width=2)
 
-    # High Score Display
-    high_score_text = canvas.create_text(700, 20, text=f"High Score: {High_Score}", fill="black", font=("Arial", 20))
+    canvas.create_text(700, 20, text=f"High Score: {High_Score}", fill="black", font=("Arial", 20))
 
-    # Placeholder for entered name
     name_display = canvas.create_text(300, 20, text="", font=("Arial", 20), fill="Blue", anchor="w")
-    cpm_text = canvas.create_text(150, 75, text=f"CPM: {CPM}", fill="black", font=("Arial", 20))
-    wpm_text = canvas.create_text(300, 75, text=f"WPM: {WPM}", fill="black", font=("Arial", 20))
+    canvas.create_text(150, 75, text=f"CPM: {CPM}", fill="black", font=("Arial", 20))
+    canvas.create_text(300, 75, text=f"WPM: {WPM}", fill="black", font=("Arial", 20))
 
-    # Function to handle name submission
     def submit():
         name = name_entry.get()
         if not name:
             canvas.create_text(400, 60, text="Name cannot be empty!", fill="red", font=("Arial", 16))
             return
 
-        # Remove input field and label
         canvas.delete(name_label)
         name_entry.destroy()
         submit_button.destroy()
 
-        # Update name display
         canvas.itemconfig(name_display, text=f"Name: {name}", fill="black")
+        start_test()
 
-    # Restart function
     def Restart():
         start()
+        display_text()
 
-    # Submit Button
+
     submit_button = ttk.Button(window, text="Submit", command=submit)
     canvas.create_window(500, 20, window=submit_button)
 
-    # Restart Button
     restart_button = ttk.Button(window, text="Restart", command=Restart)
     canvas.create_window(500, 75, window=restart_button)
 
-    # Typing Section
+    leaderboard_button = ttk.Button(window, text="Leaderboard", command=show_leaderboard)
+    canvas.create_window(650, 75, window=leaderboard_button)
+
     canvas.create_text(100, 420, text="Type here:", font=("Arial", 12), fill="black", anchor="w")
-    type_section = ttk.Entry(window, width=60)
+
+    input_text = StringVar()
+    input_text.trace_add("write", track_input)
+
+    type_section = ttk.Entry(window, width=60, textvariable=input_text)
     canvas.create_window(450, 420, window=type_section)
 
-    def display_text():
-        # Create a Text widget
+    typed_label = Label(window, text="Typed: ", font=("Arial", 12), fg="blue")
+    typed_label.grid(row=2, column=0, columnspan=3, pady=5,)
 
-        window.title("Wrapped Text Example")
+    timer_label = Label(window, text="Time Left: 60s", font=("Arial", 14))
+    timer_label.grid(row=3, column=0, columnspan=3)
 
-        long_text = """This is an example of a long text that needs to be wrapped automatically within a specific space.
-        It will be displayed in a label with proper indentation and alignment."""
-
-        # Label with text wrapping
-        label = Label(window, text=long_text, wraplength=500, justify=LEFT, font=("Arial", 14), padx=20, pady=20)
-        label.pack()
-
-        window.mainloop()
     display_text()
-# Start the app
+
+
 start()
 window.mainloop()
