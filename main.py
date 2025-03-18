@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from faker import Faker
 import time
 import csv
-
+# TODO: optimize the highscore recording stuff
 # Initialize Window
 window = Tk()
 window.title('Typing Speed Test')
@@ -76,7 +76,7 @@ def start_timer(time_left):
         timer_label.config(text=f"Time Left: {time_left}s")
         window.after(1000, start_timer, time_left - 1)
     else:
-        input_text.config(state=DISABLED)
+        # input_text.config(state=DISABLED)
         calculate_results()
 
 
