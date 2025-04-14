@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from faker import Faker
 import time
 import csv
+
 # TODO: optimize the highscore recording stuff
 # Initialize Window
 window = Tk()
@@ -16,7 +17,8 @@ WPM = 0
 word_array = []
 faker = Faker()
 start_time = None
-leaderboard_file = "leaderboard.csv"
+leaderboard_file = "leaderboard.txt"
+input_entry = None
 
 # Create Canvas
 canvas = Canvas(window, width=800, height=450, highlightthickness=0, background=background_color)
@@ -32,6 +34,9 @@ input_text = None
 typed_label = None
 timer_label = None
 countdown_time = 60  # 60-second test
+wpm_display = None
+cpm_display = None
+accuracy_display = None
 
 
 def Generate_words():
@@ -55,20 +60,31 @@ def display_text():
 
 def track_input(*args):
     """Track user input dynamically."""
-    global typed_label
-    typed_text = input_text.get().strip()  # Get user input and remove spaces at the ends
-    words_typed = typed_text.split()  # Convert typed text into a list of words
+    global typed_label, wpm_display, cpm_display, accuracy_display
 
-    correct = True  # Assume input is correct initially
+    typed_text = input_text.get().strip()
+    words_typed = typed_text.split()
 
+    correct_words = 0
     for i in range(len(words_typed)):
-        if i >= len(word_array) or words_typed[i] != word_array[i]:
-            correct = False
-            break
+        if i < len(word_array) and words_typed[i] == word_array[i]:
+            correct_words += 1
 
-    # Update label text and color based on correctness
-    color = "Green" if correct else "red"
+    correct = correct_words == len(words_typed)
+    color = "green" if correct else "red"
+
     typed_label.config(text=f"Typed: {typed_text}", wraplength=500, fg=color, justify=LEFT, font=("Arial", 16))
+
+    elapsed = max(1, time.time() - start_time)
+    live_wpm = round((len(words_typed) / elapsed) * 60)
+    live_cpm = round((len(typed_text) / elapsed) * 60)
+    accuracy = round((correct_words / len(words_typed)) * 100) if words_typed else 0
+
+    canvas.itemconfig(wpm_display, text=f"WPM: {live_wpm}")
+    canvas.itemconfig(cpm_display, text=f"CPM: {live_cpm}")
+    canvas.itemconfig(accuracy_display, text=f"Accuracy: {accuracy}%")
+
+
 def start_timer(time_left):
     """Start countdown timer."""
     global input_text
@@ -76,7 +92,8 @@ def start_timer(time_left):
         timer_label.config(text=f"Time Left: {time_left}s")
         window.after(1000, start_timer, time_left - 1)
     else:
-        # input_text.config(state=DISABLED)
+        if input_entry:
+            input_entry.config(state=DISABLED)
         calculate_results()
 
 
@@ -134,7 +151,14 @@ def show_leaderboard():
 def start():
     """Initialize the Typing Speed Test UI."""
     global name_entry, submit_button, restart_button, name_display, input_text, typed_label, timer_label
+    global wpm_display, cpm_display, accuracy_display, input_box, input_entry
 
+
+
+    if typed_label:
+        typed_label.destroy()
+    if timer_label:
+        timer_label.destroy()
     canvas.delete("all")
 
     name_label = canvas.create_text(150, 20, text="Enter your Name:", fill="black", font=("Arial", 20))
@@ -148,8 +172,10 @@ def start():
     canvas.create_text(700, 20, text=f"High Score: {High_Score}", fill="black", font=("Arial", 20))
 
     name_display = canvas.create_text(300, 20, text="", font=("Arial", 20), fill="Blue", anchor="w")
-    canvas.create_text(150, 75, text=f"CPM: {CPM}", fill="black", font=("Arial", 20))
-    canvas.create_text(300, 75, text=f"WPM: {WPM}", fill="black", font=("Arial", 20))
+
+    wpm_display = canvas.create_text(250, 75, text=f"WPM: {WPM}", fill="black", font=("Arial", 20))
+    cpm_display = canvas.create_text(150, 75, text=f"CPM: {CPM}", fill="black", font=("Arial", 20))
+    accuracy_display = canvas.create_text(380, 75, text="Accuracy: 0%", fill="black", font=("Arial", 20))
 
     def submit():
         name = name_entry.get()
@@ -168,7 +194,6 @@ def start():
         start()
         display_text()
 
-
     submit_button = ttk.Button(window, text="Submit", command=submit)
     canvas.create_window(500, 20, window=submit_button)
 
@@ -183,11 +208,11 @@ def start():
     input_text = StringVar()
     input_text.trace_add("write", track_input)
 
-    type_section = ttk.Entry(window, width=60, textvariable=input_text)
-    canvas.create_window(450, 420, window=type_section)
+    input_entry = ttk.Entry(window, width=60, textvariable=input_text)
+    canvas.create_window(450, 420, window=input_entry)
 
     typed_label = Label(window, text="Typed: ", font=("Arial", 12), fg="blue")
-    typed_label.grid(row=2, column=0, columnspan=3, pady=5,)
+    typed_label.grid(row=2, column=0, columnspan=3, pady=5, )
 
     timer_label = Label(window, text="Time Left: 60s", font=("Arial", 14))
     timer_label.grid(row=3, column=0, columnspan=3)
